@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pledgy</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: var(--tg-theme-bg-color, #f6f4fb);
+    --card: var(--tg-theme-secondary-bg-color, #ffffff);
+    --text: var(--tg-theme-text-color, #1d1636);
+    --hint: var(--tg-theme-hint-color, #8b84a3);
+    --accent: var(--tg-theme-button-color, #4b2bb8);
+    --gold: #ffc229;
+    --done: #22b573;
+    --missed: #ef5a6f;
+    --rest: color-mix(in srgb, var(--hint) 22%, transparent);
+    --line: color-mix(in srgb, var(--hint) 18%, transparent);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px 14px 32px; background: var(--bg); color: var(--text);
+    font: 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+  }
+  .hero { display: flex; align-items: center; gap: 12px; margin: 4px 2px 18px; }
+  .logo {
+    width: 52px; height: 52px; border-radius: 50%; flex: none; display: grid; place-items: center;
+    background: radial-gradient(circle at 50% 38%, #5a37d0, #2a1872 60%, #140b3a); font-size: 26px;
+    box-shadow: 0 4px 14px rgba(75, 43, 184, .35);
+  }
+  .hero h1 { margin: 0; font-size: 21px; letter-spacing: -.2px; }
+  .hero p { margin: 2px 0 0; color: var(--hint); font-size: 13px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px; }
+  .stat { background: var(--card); border-radius: 14px; padding: 10px 6px; text-align: center; }
+  .stat b { display: block; font-size: 20px; letter-spacing: -.3px; }
+  .stat span { color: var(--hint); font-size: 11px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--hint); margin: 20px 4px 8px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; }
+  .badge { background: var(--card); border-radius: 999px; padding: 6px 11px; font-size: 13px; }
+  .badge.off { opacity: .38; filter: grayscale(1); }
+  .goal { background: var(--card); border-radius: 18px; padding: 14px; margin-bottom: 12px; }
+  .goal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .goal h3 { margin: 0; font-size: 16px; }
+  .goal .plan { color: var(--hint); font-size: 12.5px; margin-top: 2px; }
+  .chip { font-size: 11.5px; font-weight: 600; padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
+  .chip.active { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+  .chip.success { background: color-mix(in srgb, var(--done) 16%, transparent); color: var(--done); }
+  .chip.failed, .chip.cancelled { background: color-mix(in srgb, var(--missed) 14%, transparent); color: var(--missed); }
+  .bar { height: 8px; border-radius: 99px; background: var(--rest); margin: 12px 0 4px; overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--accent), #8a6cff); }
+  .count { font-size: 12px; color: var(--hint); }
+  .week-label { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--hint); margin: 10px 2px 4px; }
+  .week-label .ok { color: var(--done); font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 10px; }
+  .week-label + .grid { margin-top: 0; }
+  .day {
+    aspect-ratio: 1; border-radius: 9px; display: grid; place-items: center; font-size: 11.5px;
+    background: var(--rest); color: var(--hint);
+  }
+  .day.done { background: var(--done); color: #fff; font-weight: 600; }
+  .day.missed { background: color-mix(in srgb, var(--missed) 85%, transparent); color: #fff; }
+  .day.today { outline: 2px solid var(--accent); outline-offset: -2px; color: var(--text); }
+  .day.future { opacity: .45; }
+  .day.pause { background: color-mix(in srgb, #3ba7f5 30%, transparent); color: var(--text); }
+  .legend { display: flex; gap: 12px; color: var(--hint); font-size: 11.5px; margin-top: 10px; }
+  .legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .legend .l-done::before { background: var(--done); }
+  .legend .l-missed::before { background: var(--missed); }
+  .legend .l-today::before { outline: 2px solid var(--accent); outline-offset: -2px; background: transparent; }
+  .legend .l-pause::before { background: color-mix(in srgb, #3ba7f5 45%, transparent); }
+  .legend span::before { margin-right: 0; margin-inline-end: 5px; }
+  .empty { text-align: center; color: var(--hint); padding: 30px 16px; background: var(--card); border-radius: 18px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const UI = {"en": {"title": "My Pledgy", "goals": "Goals", "success": "Success", "days": "Days done", "best": "Best run", "badges": "Badges", "my_goals": "My goals", "active": "In progress", "won": "Completed", "failed": "Failed", "cancelled": "Given up", "daily": "{d} days", "weekly": "{w} weeks · {n}× a week", "week": "Week {i}", "empty": "No goals yet. Go back to the chat and tap /new to start.", "legend_done": "done", "legend_missed": "missed", "legend_today": "today", "deadline": "before {h}", "nodata": "Open this panel from the 📱 button in the Pledgy chat.", "legend_pause": "vacation", "badge_names": {"first_goal": "🌱 First step", "first_win": "🏆 First win", "streak_7": "🔥 One week", "streak_30": "💎 Unstoppable", "brave": "💰 High stakes", "early_bird": "🌅 Early bird", "team": "👥 Team player", "ambassador": "📣 Ambassador"}}, "tr": {"title": "Pledgy'im", "goals": "Hedef", "success": "Başarı", "days": "Gün", "best": "En iyi seri", "badges": "Rozetler", "my_goals": "Hedeflerim", "active": "Devam ediyor", "won": "Tamamlandı", "failed": "Başarısız", "cancelled": "Bırakıldı", "daily": "{d} gün", "weekly": "{w} hafta · haftada {n} gün", "week": "{i}. hafta", "empty": "Henüz hedefin yok. Sohbete dönüp /new ile başla.", "legend_done": "tamam", "legend_missed": "kaçırıldı", "legend_today": "bugün", "deadline": "son saat {h}", "nodata": "Bu paneli Pledgy sohbetindeki 📱 butonundan aç.", "legend_pause": "tatil", "badge_names": {"first_goal": "🌱 İlk adım", "first_win": "🏆 İlk zafer", "streak_7": "🔥 Bir hafta", "streak_30": "💎 Durdurulamaz", "brave": "💰 Cesur", "early_bird": "🌅 Erkenci", "team": "👥 Takım oyuncusu", "ambassador": "📣 Elçi"}}, "ru": {"title": "Мой Pledgy", "goals": "Цели", "success": "Успех", "days": "Дней", "best": "Серия", "badges": "Значки", "my_goals": "Мои цели", "active": "В процессе", "won": "Выполнена", "failed": "Провалена", "cancelled": "Брошена", "daily": "{d} дн.", "weekly": "{w} нед. · {n}× в неделю", "week": "Неделя {i}", "empty": "Целей пока нет. Вернись в чат и нажми /new.", "legend_done": "готово", "legend_missed": "пропуск", "legend_today": "сегодня", "deadline": "до {h}", "nodata": "Открой эту панель кнопкой 📱 в чате Pledgy.", "legend_pause": "отпуск", "badge_names": {"first_goal": "🌱 Первый шаг", "first_win": "🏆 Первая победа", "streak_7": "🔥 Неделя", "streak_30": "💎 Неудержимый", "brave": "💰 Смельчак", "early_bird": "🌅 Жаворонок", "team": "👥 Командный игрок", "ambassador": "📣 Посол"}}, "de": {"title": "Mein Pledgy", "goals": "Ziele", "success": "Erfolg", "days": "Tage", "best": "Serie", "badges": "Abzeichen", "my_goals": "Meine Ziele", "active": "Läuft", "won": "Geschafft", "failed": "Gescheitert", "cancelled": "Aufgegeben", "daily": "{d} Tage", "weekly": "{w} Wochen · {n}× pro Woche", "week": "Woche {i}", "empty": "Noch keine Ziele. Geh zurück in den Chat und tippe /new.", "legend_done": "erledigt", "legend_missed": "verpasst", "legend_today": "heute", "legend_pause": "Urlaub", "deadline": "vor {h}", "nodata": "Öffne dieses Panel über den 📱-Button im Pledgy-Chat.", "badge_names": {"first_goal": "🌱 Erster Schritt", "first_win": "🏆 Erster Sieg", "streak_7": "🔥 Eine Woche", "streak_30": "💎 Unaufhaltsam", "brave": "💰 Hoher Einsatz", "early_bird": "🌅 Frühaufsteher", "team": "👥 Teamplayer", "ambassador": "📣 Botschafter"}}, "es": {"title": "Mi Pledgy", "goals": "Metas", "success": "Éxito", "days": "Días", "best": "Racha", "badges": "Insignias", "my_goals": "Mis metas", "active": "En curso", "won": "Cumplida", "failed": "Fallida", "cancelled": "Abandonada", "daily": "{d} días", "weekly": "{w} semanas · {n}× por semana", "week": "Semana {i}", "empty": "Aún no tienes metas. Vuelve al chat y toca /new.", "legend_done": "hecho", "legend_missed": "fallado", "legend_today": "hoy", "legend_pause": "vacaciones", "deadline": "antes de las {h}", "nodata": "Abre este panel con el botón 📱 del chat de Pledgy.", "badge_names": {"first_goal": "🌱 Primer paso", "first_win": "🏆 Primera victoria", "streak_7": "🔥 Una semana", "streak_30": "💎 Imparable", "brave": "💰 Apuesta alta", "early_bird": "🌅 Madrugador", "team": "👥 Jugador de equipo", "ambassador": "📣 Embajador"}}, "pt": {"title": "Meu Pledgy", "goals": "Metas", "success": "Sucesso", "days": "Dias", "best": "Sequência", "badges": "Medalhas", "my_goals": "Minhas metas", "active": "Em andamento", "won": "Concluída", "failed": "Falhou", "cancelled": "Desistiu", "daily": "{d} dias", "weekly": "{w} semanas · {n}× por semana", "week": "Semana {i}", "empty": "Você ainda não tem metas. Volte ao chat e toque em /new.", "legend_done": "feito", "legend_missed": "perdido", "legend_today": "hoje", "legend_pause": "férias", "deadline": "antes das {h}", "nodata": "Abra este painel pelo botão 📱 no chat do Pledgy.", "badge_names": {"first_goal": "🌱 Primeiro passo", "first_win": "🏆 Primeira vitória", "streak_7": "🔥 Uma semana", "streak_30": "💎 Imparável", "brave": "💰 Aposta alta", "early_bird": "🌅 Madrugador", "team": "👥 Espírito de equipe", "ambassador": "📣 Embaixador"}}, "fa": {"title": "Pledgy من", "goals": "هدف", "success": "موفقیت", "days": "روز", "best": "زنجیره", "badges": "نشان‌ها", "my_goals": "هدف‌های من", "active": "در جریان", "won": "انجام شد", "failed": "شکست خورد", "cancelled": "رها شد", "daily": "{d} روز", "weekly": "{w} هفته · {n} بار در هفته", "week": "هفتهٔ {i}", "empty": "هنوز هدفی نداری. به گفتگو برگرد و /new را بزن.", "legend_done": "انجام شد", "legend_missed": "جا افتاد", "legend_today": "امروز", "legend_pause": "تعطیلات", "deadline": "پیش از {h}", "nodata": "این پنل را از دکمهٔ 📱 در گفتگوی Pledgy باز کن.", "badge_names": {"first_goal": "🌱 قدم اول", "first_win": "🏆 اولین پیروزی", "streak_7": "🔥 یک هفته", "streak_30": "💎 توقف‌ناپذیر", "brave": "💰 جسور", "early_bird": "🌅 سحرخیز", "team": "👥 اهل تیم", "ambassador": "📣 سفیر"}}, "uz": {"title": "Mening Pledgy", "goals": "Maqsad", "success": "Natija", "days": "Kun", "best": "Seriya", "badges": "Nishonlar", "my_goals": "Maqsadlarim", "active": "Davom etmoqda", "won": "Bajarildi", "failed": "Bajarilmadi", "cancelled": "Tashlandi", "daily": "{d} kun", "weekly": "{w} hafta · haftasiga {n} marta", "week": "{i}-hafta", "empty": "Hali maqsading yoʻq. Chatga qaytib /new ni bos.", "legend_done": "bajarildi", "legend_missed": "oʻtkazildi", "legend_today": "bugun", "legend_pause": "taʼtil", "deadline": "{h} dan oldin", "nodata": "Bu panelni Pledgy chatidagi 📱 tugmasi orqali och.", "badge_names": {"first_goal": "🌱 Birinchi qadam", "first_win": "🏆 Birinchi gʻalaba", "streak_7": "🔥 Bir hafta", "streak_30": "💎 Toʻxtatib boʻlmas", "brave": "💰 Jasur", "early_bird": "🌅 Erta turuvchi", "team": "👥 Jamoa aʼzosi", "ambassador": "📣 Elchi"}}, "ar": {"title": "Pledgy الخاص بي", "goals": "الأهداف", "success": "النجاح", "days": "الأيام", "best": "السلسلة", "badges": "الشارات", "my_goals": "أهدافي", "active": "قيد التنفيذ", "won": "أُنجز", "failed": "فشل", "cancelled": "تُخلّي عنه", "daily": "{d} يومًا", "weekly": "{w} أسابيع · {n} مرات أسبوعيًا", "week": "الأسبوع {i}", "empty": "ليس لديك أهداف بعد. عد إلى المحادثة واضغط /new.", "legend_done": "تمّ", "legend_missed": "فائت", "legend_today": "اليوم", "legend_pause": "إجازة", "deadline": "قبل {h}", "nodata": "افتح هذه اللوحة من زر 📱 في محادثة Pledgy.", "badge_names": {"first_goal": "🌱 الخطوة الأولى", "first_win": "🏆 الفوز الأول", "streak_7": "🔥 أسبوع كامل", "streak_30": "💎 لا يُوقَف", "brave": "💰 الجريء", "early_bird": "🌅 الطائر المبكر", "team": "👥 روح الفريق", "ambassador": "📣 السفير"}}};
+const BADGES = ["first_goal", "first_win", "streak_7", "streak_30", "brave", "early_bird", "team", "ambassador"];
+const RTL = ["fa", "ar"];
+
+function decode(hash) {
+  const m = /(?:^|[#&])d=([^&]+)/.exec(hash || "");
+  if (!m) return null;
+  let b64 = m[1].replace(/-/g, "+").replace(/_/g, "/");
+  while (b64.length % 4) b64 += "=";
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+const fmt = (s, v) => s.replace(/\{(\w+)\}/g, (_, k) => v[k]);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+function addDays(iso, n) { const d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d; }
+
+function goalCard(g, t) {
+  const done = new Set(g.k);
+  const paused = new Set(g.pz || []);
+  const total = g.f ? g.f * Math.floor(g.d / 7) : g.d - (g.pz || []).length;
+  const count = Math.min(g.k.length, total);
+  const plan = g.f ? fmt(t.weekly, {w: Math.floor(g.d / 7), n: g.f}) : fmt(t.daily, {d: g.d});
+  const deadline = g.dl !== null && g.dl !== undefined ? " · ⏰ " + fmt(t.deadline, {h: String(g.dl).padStart(2, "0") + ":00"}) : "";
+  // Bitmiş hedeflerde son değerlendirilen günden sonrası yaşanmadı: nötr gösterilir
+  const today = g.st === "active" ? g.td : (g.le !== null && g.le !== undefined ? g.le + 1 : g.d);
+  const label = {active: t.active, success: t.won, failed: t.failed, cancelled: t.cancelled}[g.st];
+  const cell = i => {
+    const date = addDays(g.s, i).getUTCDate();
+    let cls = "day";
+    if (done.has(i)) cls += " done";
+    else if (paused.has(i)) cls += " pause";
+    else if (i < today && !g.f) cls += " missed";
+    if (g.st === "active" && i === today) cls += " today";
+    if (g.st === "active" ? i > today : i >= today) cls += " future";
+    return `<div class="${cls}">${date}</div>`;
+  };
+  let days = "";
+  if (g.f) {
+    for (let w = 0; w * 7 < g.d; w++) {
+      let wk = 0, cells = "";
+      for (let i = w * 7; i < Math.min(w * 7 + 7, g.d); i++) { if (done.has(i)) wk++; cells += cell(i); }
+      const ok = wk >= g.f ? ' class="ok"' : "";
+      days += `<div class="week-label"><span>${fmt(t.week, {i: w + 1})}</span><span${ok}>${Math.min(wk, 7)}/${g.f}</span></div><div class="grid">${cells}</div>`;
+    }
+  } else {
+    let cells = "";
+    for (let i = 0; i < g.d; i++) cells += cell(i);
+    days = `<div class="grid">${cells}</div>`;
+  }
+  return `<div class="goal">
+    <div class="goal-head"><div><h3>${esc(g.t)}</h3><div class="plan">${plan}${deadline}</div></div>
+    <span class="chip ${g.st}">${label}</span></div>
+    <div class="bar"><i style="width:${total ? Math.round(100 * count / total) : 0}%"></i></div>
+    <div class="count">${count}/${total}</div>
+    ${days}
+  </div>`;
+}
+
+function render() {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) { tg.ready(); tg.expand(); }
+  let data = null;
+  try { data = decode(location.hash); } catch (e) { data = null; }
+  const lang = (data && UI[data.l]) ? data.l : ((tg && tg.initDataUnsafe && tg.initDataUnsafe.user && UI[tg.initDataUnsafe.user.language_code]) ? tg.initDataUnsafe.user.language_code : "en");
+  const t = UI[lang];
+  document.documentElement.lang = lang;
+  document.documentElement.dir = RTL.includes(lang) ? "rtl" : "ltr";
+  const app = document.getElementById("app");
+  if (!data) { app.innerHTML = `<div class="empty">${t.nodata}</div>`; return; }
+  const finished = data.g.filter(g => g.st !== "active");
+  const wins = data.g.filter(g => g.st === "success").length;
+  const rate = finished.length ? Math.round(100 * wins / finished.length) + "%" : "—";
+  const daysDone = data.g.reduce((a, g) => a + g.k.length, 0);
+  const best = data.g.reduce((a, g) => Math.max(a, g.k.length), 0);
+  const badges = BADGES.map(b => `<span class="badge${data.b.includes(b) ? "" : " off"}">${t.badge_names[b]}</span>`).join("");
+  app.innerHTML = `
+    <div class="hero"><div class="logo">⭐</div><div><h1>${esc(data.n || t.title)}${data.p ? " 👑" : ""}</h1><p>${t.title}</p></div></div>
+    <div class="stats">
+      <div class="stat"><b>${data.g.length}</b><span>${t.goals}</span></div>
+      <div class="stat"><b>${rate}</b><span>${t.success}</span></div>
+      <div class="stat"><b>${daysDone}</b><span>${t.days}</span></div>
+      <div class="stat"><b>${best}</b><span>${t.best}</span></div>
+    </div>
+    <h2>${t.badges}</h2><div class="badges">${badges}</div>
+    <h2>${t.my_goals}</h2>
+    ${data.g.length ? data.g.map(g => goalCard(g, t)).join("") : `<div class="empty">${t.empty}</div>`}
+    <div class="legend"><span class="l-done">${t.legend_done}</span><span class="l-missed">${t.legend_missed}</span><span class="l-today">${t.legend_today}</span><span class="l-pause">${t.legend_pause}</span></div>`;
+}
+render();
+window.addEventListener("hashchange", render);
+</script>
+</body>
+</html>
